@@ -1,0 +1,146 @@
+# -*-*- encoding: utf-8 -*-*-
+
+import re
+import sys
+from bs4 import BeautifulSoup
+import json
+import datetime
+import uuid
+import hashlib
+import urllib2
+
+from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
+
+from labmanager.forms import AddForm, RetrospectiveForm, GenericPermissionForm
+from labmanager.rlms import register, Laboratory
+from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
+
+def get_module(version):
+    """get_module(version) -> proper module for that version
+
+    Right now, a single version is supported, so this module itself will be returned.
+    When compatibility is required, we may change this and import different modules.
+    """
+    # TODO: check version
+    return sys.modules[__name__]
+
+class PhETAddForm(AddForm):
+
+    def __init__(self, add_or_edit, *args, **kwargs):
+        super(PhETAddForm, self).__init__(*args, **kwargs)
+        self.add_or_edit = add_or_edit
+
+    @staticmethod
+    def process_configuration(old_configuration, new_configuration):
+        return new_configuration
+
+class PhETPermissionForm(RetrospectiveForm):
+    pass
+
+class PhETLmsPermissionForm(PhETPermissionForm, GenericPermissionForm):
+    pass
+
+class PhETFormCreator(BaseFormCreator):
+
+    def get_add_form(self):
+        return PhETAddForm
+
+    def get_permission_form(self):
+        return PhETPermissionForm
+
+    def get_lms_permission_form(self):
+        return PhETLmsPermissionForm
+
+FORM_CREATOR = PhETFormCreator()
+
+class RLMS(BaseRLMS):
+
+    def __init__(self, configuration):
+        self.configuration = json.loads(configuration or '{}')
+
+    def get_version(self):
+        return Versions.VERSION_1
+
+    def get_capabilities(self):
+        return [ Capabilities.WIDGET ]
+
+    def test(self):
+        json.loads(self.configuration)
+        # TODO
+        return None
+
+    def get_laboratories(self):
+        index_html = urllib2.urlopen("https://phet.colorado.edu/en/simulations/index").read()
+        soup = BeautifulSoup(index_html)
+        
+        laboratories = []
+
+        for h2 in soup.find_all("h2"):
+            parent_identifier = h2.parent.get('id')
+            # Just checking that the format has not changed
+            if parent_identifier and len(parent_identifier) == 1 and parent_identifier in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                for link in h2.parent.find_all("a"):
+                    link_href = 'https://phet.colorado.edu%s' % link.get('href')
+                    name = link.find("span").text
+                    laboratories.append(Laboratory(name = name, laboratory_id = link_href))
+
+        return laboratories
+
+    def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
+
+        laboratory_html = urllib2.urlopen(laboratory_id).read()
+        soup = BeautifulSoup(laboratory_html)
+
+        url  = ""
+
+        # If there's a "Run in HTML5" button
+        html5_url = soup.find("a", class_="sim-button", text=re.compile("HTML5"))
+
+        if html5_url:
+            # Then that's the URL
+            url = html5_url.get("href")
+        else:
+            # Otherwise, if there is a embeddable-text
+            embed_text = soup.find(id="embeddable-text").text
+    
+            # Then, check what's inside:
+            embed_soup = BeautifulSoup(embed_text)
+
+            # If it's an iframe, the src is the URL
+            iframe_tag = embed_soup.find("iframe")
+            if iframe_tag:
+                url = iframe_tag.get("src")
+            else:
+                # Otherwise, the link is the URL
+                a_tag = embed_soup.find("a")
+                url = a_tag.get("href")
+
+        return {
+            'reservation_id' : url,
+            'load_url' : url
+        }
+
+    def load_widget(self, reservation_id, widget_name):
+        return {
+            'url' : reservation_id
+        }
+
+    def list_widgets(self, laboratory_id):
+        default_widget = dict( name = 'default', description = 'Default widget' )
+        return [ default_widget ]
+
+register("PhET", ['1.0'], __name__)
+
+def main():
+    rlms = RLMS("{}")
+    laboratories = rlms.get_laboratories()
+    print len(laboratories)
+    print
+    print laboratories[:10]
+    print
+    for lab in laboratories[:5]:
+        print rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '')
+    
+
+if __name__ == '__main__':
+    main()
