@@ -53,6 +53,10 @@ class PhETFormCreator(BaseFormCreator):
 
 FORM_CREATOR = PhETFormCreator()
 
+
+def phet_url(url):
+    return "http://phet.colorado.edu%s" % url
+
 class RLMS(BaseRLMS):
 
     def __init__(self, configuration):
@@ -70,7 +74,7 @@ class RLMS(BaseRLMS):
         return None
 
     def get_laboratories(self):
-        index_html = urllib2.urlopen("https://phet.colorado.edu/en/simulations/index").read()
+        index_html = urllib2.urlopen(phet_url("/en/simulations/index")).read()
         soup = BeautifulSoup(index_html)
         
         laboratories = []
@@ -80,7 +84,7 @@ class RLMS(BaseRLMS):
             # Just checking that the format has not changed
             if parent_identifier and len(parent_identifier) == 1 and parent_identifier in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
                 for link in h2.parent.find_all("a"):
-                    link_href = 'https://phet.colorado.edu%s' % link.get('href')
+                    link_href = phet_url(link.get('href'))
                     name = link.find("span").text
                     laboratories.append(Laboratory(name = name, laboratory_id = link_href))
 
@@ -114,6 +118,9 @@ class RLMS(BaseRLMS):
                 # Otherwise, the link is the URL
                 a_tag = embed_soup.find("a")
                 url = a_tag.get("href")
+
+        if url and not url.startswith(("http://", "https://")):
+            url = phet_url(url)
 
         return {
             'reservation_id' : url,
