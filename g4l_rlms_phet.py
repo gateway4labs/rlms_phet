@@ -73,7 +73,7 @@ class RLMS(BaseRLMS):
         # TODO
         return None
 
-    def get_laboratories(self):
+    def get_laboratories(self, **kwargs):
         index_html = urllib2.urlopen(phet_url("/en/simulations/index")).read()
         soup = BeautifulSoup(index_html)
         
@@ -127,12 +127,12 @@ class RLMS(BaseRLMS):
             'load_url' : url
         }
 
-    def load_widget(self, reservation_id, widget_name):
+    def load_widget(self, reservation_id, widget_name, **kwargs):
         return {
             'url' : reservation_id
         }
 
-    def list_widgets(self, laboratory_id):
+    def list_widgets(self, laboratory_id, **kwargs):
         default_widget = dict( name = 'default', description = 'Default widget' )
         return [ default_widget ]
 
