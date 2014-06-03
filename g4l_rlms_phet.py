@@ -86,7 +86,7 @@ class RLMS(BaseRLMS):
                 for link in h2.parent.find_all("a"):
                     link_href = phet_url(link.get('href'))
                     name = link.find("span").text
-                    laboratories.append(Laboratory(name = name, laboratory_id = link_href))
+                    laboratories.append(Laboratory(name = name, laboratory_id = link_href, autoload = True))
 
         return laboratories
 
