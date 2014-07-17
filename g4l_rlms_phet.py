@@ -26,6 +26,9 @@ def get_module(version):
 
 class PhETAddForm(AddForm):
 
+    DEFAULT_URL = 'http://phet.colorado.edu/en/'
+    DEFAULT_LOCATION = 'Colorado, USA'
+
     def __init__(self, add_or_edit, *args, **kwargs):
         super(PhETAddForm, self).__init__(*args, **kwargs)
         self.add_or_edit = add_or_edit
