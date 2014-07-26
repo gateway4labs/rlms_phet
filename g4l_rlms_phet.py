@@ -11,7 +11,7 @@ import urllib2
 
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
 
-from labmanager.forms import AddForm, RetrospectiveForm, GenericPermissionForm
+from labmanager.forms import AddForm
 from labmanager.rlms import register, Laboratory
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
 
@@ -37,22 +37,10 @@ class PhETAddForm(AddForm):
     def process_configuration(old_configuration, new_configuration):
         return new_configuration
 
-class PhETPermissionForm(RetrospectiveForm):
-    pass
-
-class PhETLmsPermissionForm(PhETPermissionForm, GenericPermissionForm):
-    pass
-
 class PhETFormCreator(BaseFormCreator):
 
     def get_add_form(self):
         return PhETAddForm
-
-    def get_permission_form(self):
-        return PhETPermissionForm
-
-    def get_lms_permission_form(self):
-        return PhETLmsPermissionForm
 
 FORM_CREATOR = PhETFormCreator()
 
