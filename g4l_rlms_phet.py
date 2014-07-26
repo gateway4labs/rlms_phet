@@ -71,11 +71,6 @@ class RLMS(BaseRLMS):
     def get_capabilities(self):
         return [ Capabilities.WIDGET ]
 
-    def test(self):
-        json.loads(self.configuration)
-        # TODO
-        return None
-
     def get_laboratories(self, **kwargs):
         index_html = urllib2.urlopen(phet_url("/en/simulations/index")).read()
         soup = BeautifulSoup(index_html)
