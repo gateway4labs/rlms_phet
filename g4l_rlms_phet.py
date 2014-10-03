@@ -28,6 +28,8 @@ class PhETAddForm(AddForm):
 
     DEFAULT_URL = 'http://phet.colorado.edu/en/'
     DEFAULT_LOCATION = 'Colorado, USA'
+    DEFAULT_PUBLICLY_AVAILABLE = True
+    DEFAULT_PUBLIC_IDENTIFIER = 'phet'
 
     def __init__(self, add_or_edit, *args, **kwargs):
         super(PhETAddForm, self).__init__(*args, **kwargs)
