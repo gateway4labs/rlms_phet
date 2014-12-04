@@ -30,6 +30,7 @@ class PhETAddForm(AddForm):
     DEFAULT_LOCATION = 'Colorado, USA'
     DEFAULT_PUBLICLY_AVAILABLE = True
     DEFAULT_PUBLIC_IDENTIFIER = 'phet'
+    DEFAULT_AUTOLOAD = True
 
     def __init__(self, add_or_edit, *args, **kwargs):
         super(PhETAddForm, self).__init__(*args, **kwargs)
