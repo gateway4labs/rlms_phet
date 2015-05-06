@@ -1,5 +1,6 @@
 # -*-*- encoding: utf-8 -*-*-
 
+import time
 import re
 import sys
 from bs4 import BeautifulSoup
@@ -7,22 +8,12 @@ import json
 import datetime
 import uuid
 import hashlib
-import urllib2
 
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
 
 from labmanager.forms import AddForm
-from labmanager.rlms import register, Laboratory
+from labmanager.rlms import register, Laboratory, get_cached_session, GlobalCache
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
-
-def get_module(version):
-    """get_module(version) -> proper module for that version
-
-    Right now, a single version is supported, so this module itself will be returned.
-    When compatibility is required, we may change this and import different modules.
-    """
-    # TODO: check version
-    return sys.modules[__name__]
 
 class PhETAddForm(AddForm):
 
@@ -53,8 +44,9 @@ def phet_url(url):
 
 class RLMS(BaseRLMS):
 
-    def __init__(self, configuration):
+    def __init__(self, configuration, *args, **kwargs):
         self.configuration = json.loads(configuration or '{}')
+        self.cached_session = get_cached_session()
 
     def get_version(self):
         return Versions.VERSION_1
@@ -63,7 +55,12 @@ class RLMS(BaseRLMS):
         return [ Capabilities.WIDGET ]
 
     def get_laboratories(self, **kwargs):
-        index_html = urllib2.urlopen(phet_url("/en/simulations/index")).read()
+        listing_url = phet_url("/en/simulations/index")
+        laboratories = CACHE.get(listing_url)
+        if laboratories is not None:
+            return laboratories
+
+        index_html = self.cached_session.get(listing_url).text
         soup = BeautifulSoup(index_html)
         
         laboratories = []
@@ -76,12 +73,17 @@ class RLMS(BaseRLMS):
                     link_href = phet_url(link.get('href'))
                     name = link.find("span").text
                     laboratories.append(Laboratory(name = name, laboratory_id = link_href, autoload = True))
-
+        
+        CACHE.save(listing_url, laboratories)
         return laboratories
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
 
-        laboratory_html = urllib2.urlopen(laboratory_id).read()
+        response = CACHE.get(laboratory_id)
+        if response is not None:
+            return response
+
+        laboratory_html = self.cached_session.get(laboratory_id).text
         soup = BeautifulSoup(laboratory_html)
 
         url  = ""
@@ -111,10 +113,12 @@ class RLMS(BaseRLMS):
         if url and not url.startswith(("http://", "https://")):
             url = phet_url(url)
 
-        return {
+        response = {
             'reservation_id' : url,
             'load_url' : url
         }
+        CACHE.save(laboratory_id, response)
+        return response
 
     def load_widget(self, reservation_id, widget_name, **kwargs):
         return {
@@ -126,16 +130,22 @@ class RLMS(BaseRLMS):
         return [ default_widget ]
 
 register("PhET", ['1.0'], __name__)
+CACHE = GlobalCache("PhET - 1.0")
 
 def main():
     rlms = RLMS("{}")
+    t0 = time.time()
     laboratories = rlms.get_laboratories()
-    print len(laboratories)
+    tf = time.time()
+    print len(laboratories), (tf - t0), "seconds"
     print
     print laboratories[:10]
     print
     for lab in laboratories[:5]:
+        t0 = time.time()
         print rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '')
+        tf = time.time()
+        print tf - t0, "seconds"
     
 
 if __name__ == '__main__':
