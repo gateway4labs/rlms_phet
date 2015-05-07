@@ -128,7 +128,13 @@ class RLMS(BaseRLMS):
         default_widget = dict( name = 'default', description = 'Default widget' )
         return [ default_widget ]
 
+def populate_cache():
+    rlms = RLMS("{}")
+    for lab in rlms.get_laboratories():
+        rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '')
+
 PHET = register("PhET", ['1.0'], __name__)
+PHET.add_global_periodic_task('Populating cache', populate_cache, minutes = 55)
 
 def main():
     rlms = RLMS("{}")
