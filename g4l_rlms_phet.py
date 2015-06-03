@@ -1,5 +1,6 @@
 # -*-*- encoding: utf-8 -*-*-
 
+import sys
 import time
 import re
 import sys
@@ -16,6 +17,13 @@ from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationErr
 from labmanager.forms import AddForm
 from labmanager.rlms import register, Laboratory
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
+
+DEBUG = False
+    
+def dbg(msg):
+    if DEBUG:
+        print msg
+        sys.stdout.flush()
 
 class PhETAddForm(AddForm):
 
@@ -40,17 +48,26 @@ class PhETFormCreator(BaseFormCreator):
 
 FORM_CREATOR = PhETFormCreator()
 
+ALL_LINKS = None
 
 def phet_url(url):
     return "http://phet.colorado.edu%s" % url
 
 def get_languages():
+    KEY = 'get_languages'
+    languages = PHET.cache.get(KEY)
+    if languages:
+        return languages
+
     listing_url = phet_url("/en/simulations/index")
     index_html = PHET.cached_session.get(listing_url).text
     soup = BeautifulSoup(index_html)
     languages = []
     for translation_link in soup.find_all("a", class_="translation-link"):
-        languages.append(translation_link.get('href').split('/')[1])
+        language = translation_link.get('href').split('/')[1]
+        if '_' not in language:
+            languages.append(language)
+    PHET.cache[KEY] = languages
     return languages
 
 def populate_links(lang, all_links):
@@ -85,6 +102,11 @@ def retrieve_all_links():
     if all_links:
         return all_links
 
+    # If it is in a global variable
+    all_links = ALL_LINKS
+    if all_links:
+        return all_links
+
     all_links = {}
     for lang in get_languages():
         populate_links(lang, all_links)
@@ -102,6 +124,8 @@ def retrieve_labs():
     laboratories = PHET.cache.get(KEY)
     if laboratories:
         return laboratories
+
+    dbg("get_laboratories not in cache")
 
     links = retrieve_all_links()
     laboratories = []
@@ -192,9 +216,19 @@ class RLMS(BaseRLMS):
 
 def populate_cache():
     rlms = RLMS("{}")
-    for lab in rlms.get_laboratories():
-        for language in get_languages():
-            rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '', locale = language)
+    dbg("Retrieving labs")
+    LANGUAGES = get_languages()
+    global ALL_LINKS
+    ALL_LINKS = retrieve_all_links()
+    try:
+        for lab in rlms.get_laboratories():
+            dbg(lab.laboratory_id)
+            for language in LANGUAGES:
+                dbg(" - %s" % language)
+                rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '', locale = language)
+        dbg("Finished")
+    finally:
+        ALL_LINKS = None
 
 PHET = register("PhET", ['1.0'], __name__)
 PHET.add_global_periodic_task('Populating cache', populate_cache, minutes = 55)
@@ -208,6 +242,7 @@ def main():
     print
     print laboratories[:10]
     print
+    # print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'pt_ALL')
     for lab in laboratories[:5]:
         for lang in ('en', 'pt'):
             t0 = time.time()
