@@ -89,8 +89,13 @@ def retrieve_all_links():
     for lang in get_languages():
         populate_links(lang, all_links)
 
-    PHET.cache[KEY] = all_links
-    return all_links
+    new_links = {}
+    # Convert relative links into absolute links
+    for link, link_data in all_links.iteritems():
+        new_links[link_data['en']['link']] = link_data
+
+    PHET.cache[KEY] = new_links
+    return new_links
 
 def retrieve_labs():
     KEY = 'get_laboratories'
