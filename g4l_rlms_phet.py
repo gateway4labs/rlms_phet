@@ -3,11 +3,13 @@
 import time
 import re
 import sys
-from bs4 import BeautifulSoup
+import urlparse
 import json
 import datetime
 import uuid
 import hashlib
+
+from bs4 import BeautifulSoup
 
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
 
@@ -42,6 +44,71 @@ FORM_CREATOR = PhETFormCreator()
 def phet_url(url):
     return "http://phet.colorado.edu%s" % url
 
+def get_languages():
+    listing_url = phet_url("/en/simulations/index")
+    index_html = PHET.cached_session.get(listing_url).text
+    soup = BeautifulSoup(index_html)
+    languages = []
+    for translation_link in soup.find_all("a", class_="translation-link"):
+        languages.append(translation_link.get('href').split('/')[1])
+    return languages
+
+def populate_links(lang, all_links):
+    listing_url = phet_url("/%s/simulations/index" % lang)
+
+    index_html = PHET.cached_session.get(listing_url).text
+    soup = BeautifulSoup(index_html)
+
+    laboratories = []
+    
+    for h2 in soup.find_all("h2"):
+        parent_identifier = h2.parent.get('id')
+        if parent_identifier and len(parent_identifier) == 1 and parent_identifier in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+            for link in h2.parent.find_all("a"):
+                link_href = phet_url(link.get('href'))
+                name = link.find("span").text
+
+                # http://phet.colorado.edu/es/simulation/acid-base-solutions => simulation/acid-base-solutions
+                relative_path = urlparse.urlparse(link_href).path.split('/',2)[-1]
+                if relative_path not in all_links:
+                    all_links[relative_path] = {}
+
+                all_links[relative_path][lang] = {
+                    'link' : link_href,
+                    'name' : name,
+                }
+
+
+def retrieve_all_links():
+    KEY = 'get_links'
+    all_links = PHET.cache.get(KEY)
+    if all_links:
+        return all_links
+
+    all_links = {}
+    for lang in get_languages():
+        populate_links(lang, all_links)
+
+    PHET.cache[KEY] = all_links
+    return all_links
+
+def retrieve_labs():
+    KEY = 'get_laboratories'
+    laboratories = PHET.cache.get(KEY)
+    if laboratories:
+        return laboratories
+
+    links = retrieve_all_links()
+    laboratories = []
+    for link, link_data in links.iteritems():
+        if 'en' in link_data:
+            cur_name = link_data['en']['name']
+            lab = Laboratory(name = cur_name, laboratory_id = link, autoload = True)
+            laboratories.append(lab)
+
+    PHET.cache[KEY] = laboratories
+    return laboratories
+
 class RLMS(BaseRLMS):
 
     def __init__(self, configuration, *args, **kwargs):
@@ -54,35 +121,23 @@ class RLMS(BaseRLMS):
         return [ Capabilities.WIDGET ]
 
     def get_laboratories(self, **kwargs):
-        listing_url = phet_url("/en/simulations/index")
-        laboratories = PHET.cache.get(listing_url)
-        if laboratories is not None:
-            return laboratories
-
-        index_html = PHET.cached_session.get(listing_url).text
-        soup = BeautifulSoup(index_html)
-        
-        laboratories = []
-
-        for h2 in soup.find_all("h2"):
-            parent_identifier = h2.parent.get('id')
-            # Just checking that the format has not changed
-            if parent_identifier and len(parent_identifier) == 1 and parent_identifier in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-                for link in h2.parent.find_all("a"):
-                    link_href = phet_url(link.get('href'))
-                    name = link.find("span").text
-                    laboratories.append(Laboratory(name = name, laboratory_id = link_href, autoload = True))
-        
-        PHET.cache[listing_url] = laboratories
-        return laboratories
+        return retrieve_labs()
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
-
-        response = PHET.cache.get(laboratory_id)
+        locale = kwargs.get('locale', 'en')
+        KEY = '_'.join((laboratory_id, locale))
+        response = PHET.cache.get(KEY)
         if response is not None:
             return response
+        
+        links = retrieve_all_links()
+        link_data = links[laboratory_id]
+        if locale in link_data:
+            link = link_data[locale]['link']
+        else:
+            link = link_data['en']['link']
 
-        laboratory_html = PHET.cached_session.get(laboratory_id).text
+        laboratory_html = PHET.cached_session.get(link).text
         soup = BeautifulSoup(laboratory_html)
 
         url  = ""
@@ -116,7 +171,7 @@ class RLMS(BaseRLMS):
             'reservation_id' : url,
             'load_url' : url
         }
-        PHET.cache[laboratory_id] = response
+        PHET.cache[KEY] = response
         return response
 
     def load_widget(self, reservation_id, widget_name, **kwargs):
@@ -131,7 +186,8 @@ class RLMS(BaseRLMS):
 def populate_cache():
     rlms = RLMS("{}")
     for lab in rlms.get_laboratories():
-        rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '')
+        for language in get_languages():
+            rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '', locale = language)
 
 PHET = register("PhET", ['1.0'], __name__)
 PHET.add_global_periodic_task('Populating cache', populate_cache, minutes = 55)
@@ -146,10 +202,11 @@ def main():
     print laboratories[:10]
     print
     for lab in laboratories[:5]:
-        t0 = time.time()
-        print rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '')
-        tf = time.time()
-        print tf - t0, "seconds"
+        for lang in ('en', 'pt'):
+            t0 = time.time()
+            print rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '', locale = lang)
+            tf = time.time()
+            print tf - t0, "seconds"
     
 
 if __name__ == '__main__':
