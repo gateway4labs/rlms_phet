@@ -171,6 +171,13 @@ class RLMS(BaseRLMS):
         if locale in link_data:
             link = link_data[locale]['link']
         else:
+            # If the language is not in the list of labs, 
+            # use the English version
+            NEW_KEY = '_'.join((laboratory_id, 'en'))
+            response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
+            if response:
+                return response
+
             link = link_data['en']['link']
 
         laboratory_html = PHET.cached_session.get(link).text
