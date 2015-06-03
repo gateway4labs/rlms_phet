@@ -9,16 +9,18 @@ import json
 import datetime
 import uuid
 import hashlib
+import threading
+import Queue
 
 from bs4 import BeautifulSoup
 
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
 
 from labmanager.forms import AddForm
-from labmanager.rlms import register, Laboratory
+from labmanager.rlms import register, Laboratory, CacheDisabler
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
 
-DEBUG = False
+DEBUG = True
     
 def dbg(msg):
     if DEBUG:
@@ -53,20 +55,23 @@ ALL_LINKS = None
 def phet_url(url):
     return "http://phet.colorado.edu%s" % url
 
+MIN_TIME = datetime.timedelta(hours=24)
+
 def get_languages():
     KEY = 'get_languages'
-    languages = PHET.cache.get(KEY)
+    languages = PHET.cache.get(KEY, min_time = MIN_TIME)
     if languages:
         return languages
 
     listing_url = phet_url("/en/simulations/index")
     index_html = PHET.cached_session.get(listing_url).text
     soup = BeautifulSoup(index_html)
-    languages = []
+    languages = set([])
     for translation_link in soup.find_all("a", class_="translation-link"):
         language = translation_link.get('href').split('/')[1]
-        if '_' not in language:
-            languages.append(language)
+        languages.add(language.split('_')[0])
+    languages = list(languages)
+    languages.sort()
     PHET.cache[KEY] = languages
     return languages
 
@@ -98,7 +103,7 @@ def populate_links(lang, all_links):
 
 def retrieve_all_links():
     KEY = 'get_links'
-    all_links = PHET.cache.get(KEY)
+    all_links = PHET.cache.get(KEY, min_time = MIN_TIME)
     if all_links:
         return all_links
 
@@ -121,7 +126,7 @@ def retrieve_all_links():
 
 def retrieve_labs():
     KEY = 'get_laboratories'
-    laboratories = PHET.cache.get(KEY)
+    laboratories = PHET.cache.get(KEY, min_time = MIN_TIME)
     if laboratories:
         return laboratories
 
@@ -157,7 +162,7 @@ class RLMS(BaseRLMS):
         if '_' in locale:
             locale = locale.split('_')[0]
         KEY = '_'.join((laboratory_id, locale))
-        response = PHET.cache.get(KEY)
+        response = PHET.cache.get(KEY, min_time = MIN_TIME)
         if response is not None:
             return response
         
@@ -214,24 +219,100 @@ class RLMS(BaseRLMS):
         default_widget = dict( name = 'default', description = 'Default widget' )
         return [ default_widget ]
 
+class _QueueTaskProcessor(threading.Thread):
+    def __init__(self, number, queue):
+        threading.Thread.__init__(self)
+        self.setName("QueueProcessor-%s" % number)
+        self.queue = queue
+
+    def run(self):
+        cache_disabler = CacheDisabler()
+        cache_disabler.disable()
+        try:
+            while True:
+                try:
+                    t = self.queue.get_nowait()
+                except Queue.Empty:
+                    break
+                else:
+                    t.run()
+        finally:
+            cache_disabler.reenable()
+
+def _run_tasks(tasks, threads = 32):
+    queue = Queue.Queue()
+    for task in tasks:
+        queue.put(task)
+    
+    task_processors = []
+    for task_processor_number in range(threads):
+        task_processor = _QueueTaskProcessor(task_processor_number, queue)
+        task_processor.start()
+        task_processors.append(task_processor)
+
+    any_alive = True
+    while any_alive:
+        any_alive = False
+        for task_processor in task_processors:
+            if task_processor.isAlive():
+                any_alive = True
+
+        try:
+            time.sleep(1)
+        except:
+            # If there is an exception (such as keyboardinterrupt, or kill process..)
+            for task in tasks:
+                task.stop()
+
+            # Delete everything in the queue (so the task stops) and re-raise the exception
+            while True:
+                try:
+                    queue.get_nowait()
+                except Queue.Empty:
+                    break
+            raise
+
+    dbg("All processes are over")
+
+
+class _QueueTask(object):
+    def __init__(self, laboratory_id, language):
+        self.laboratory_id = laboratory_id
+        self.language = language
+        self.stopping = False
+
+    def stop(self):
+        self.stopping = True
+
+    def run(self):
+        if self.stopping:
+            return
+
+        rlms = RLMS("{}")
+        dbg(' - %s lang: %s' % (self.laboratory_id, self.language))
+        rlms.reserve(self.laboratory_id, 'tester', 'foo', '', '', '', '', locale = self.language)
+
 def populate_cache():
     rlms = RLMS("{}")
     dbg("Retrieving labs")
     LANGUAGES = get_languages()
     global ALL_LINKS
     ALL_LINKS = retrieve_all_links()
+
     try:
+        tasks = []
         for lab in rlms.get_laboratories():
-            dbg(lab.laboratory_id)
-            for language in LANGUAGES:
-                dbg(" - %s" % language)
-                rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '', locale = language)
+            for lang in LANGUAGES:
+                tasks.append(_QueueTask(lab.laboratory_id, lang))
+
+        _run_tasks(tasks)
+
         dbg("Finished")
     finally:
         ALL_LINKS = None
 
 PHET = register("PhET", ['1.0'], __name__)
-PHET.add_global_periodic_task('Populating cache', populate_cache, minutes = 55)
+PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 23)
 
 def main():
     rlms = RLMS("{}")
