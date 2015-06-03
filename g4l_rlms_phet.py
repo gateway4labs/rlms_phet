@@ -130,6 +130,8 @@ class RLMS(BaseRLMS):
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
         locale = kwargs.get('locale', 'en')
+        if '_' in locale:
+            locale = locale.split('_')[0]
         KEY = '_'.join((laboratory_id, locale))
         response = PHET.cache.get(KEY)
         if response is not None:
