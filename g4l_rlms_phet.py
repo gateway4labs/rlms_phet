@@ -20,7 +20,7 @@ from labmanager.forms import AddForm
 from labmanager.rlms import register, Laboratory, CacheDisabler
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
 
-DEBUG = True
+DEBUG = False
     
 def dbg(msg):
     if DEBUG:
