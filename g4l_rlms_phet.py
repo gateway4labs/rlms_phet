@@ -176,6 +176,7 @@ class RLMS(BaseRLMS):
             NEW_KEY = '_'.join((laboratory_id, 'en'))
             response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
             if response:
+                PHET.cache[KEY] = response
                 return response
 
             link = link_data['en']['link']
