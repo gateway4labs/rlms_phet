@@ -69,7 +69,7 @@ def get_languages():
     languages = set([])
     for translation_link in soup.find_all("a", class_="translation-link"):
         language = translation_link.get('href').split('/')[1]
-        languages.add(language.split('_')[0])
+        languages.add(language)
     languages = list(languages)
     languages.sort()
     PHET.cache[KEY] = languages
@@ -82,10 +82,11 @@ def populate_links(lang, all_links):
     soup = BeautifulSoup(index_html)
 
     laboratories = []
-    
+
+    lang = lang.split('_')[0]
     for h2 in soup.find_all("h2"):
         parent_identifier = h2.parent.get('id')
-        if parent_identifier and len(parent_identifier) == 1 and parent_identifier in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+        if parent_identifier and len(parent_identifier) == 1:
             for link in h2.parent.find_all("a"):
                 link_href = phet_url(link.get('href'))
                 name = link.find("span").text
@@ -113,7 +114,12 @@ def retrieve_all_links():
         return all_links
 
     all_links = {}
+    previous_short_langs = set()
     for lang in get_languages():
+        short_lang = lang.split('_')[0]
+        if short_lang in previous_short_langs:
+            continue
+        previous_short_langs.add(short_lang)
         populate_links(lang, all_links)
 
     new_links = {}
@@ -331,7 +337,15 @@ def main():
     print
     print laboratories[:10]
     print
-    # print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'pt_ALL')
+    # print get_languages()
+    # foo = {}
+    # populate_links('ar', foo)
+    # print sorted(foo.keys())
+    # print retrieve_all_links()['http://phet.colorado.edu/en/simulation/density']
+    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'el_ALL')
+    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'pt_ALL')
+    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'ar_ALL')
+    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'es_ALL')
     for lab in laboratories[:5]:
         for lang in ('en', 'pt'):
             t0 = time.time()
