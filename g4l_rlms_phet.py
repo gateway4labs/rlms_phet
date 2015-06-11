@@ -173,19 +173,22 @@ class RLMS(BaseRLMS):
             return response
         
         links = retrieve_all_links()
-        link_data = links[laboratory_id]
-        if locale in link_data:
-            link = link_data[locale]['link']
+        link_data = links.get(laboratory_id)
+        if link_data is None:
+            link = laboratory_id
         else:
-            # If the language is not in the list of labs, 
-            # use the English version
-            NEW_KEY = '_'.join((laboratory_id, 'en'))
-            response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
-            if response:
-                PHET.cache[KEY] = response
-                return response
+            if locale in link_data:
+                link = link_data[locale]['link']
+            else:
+                # If the language is not in the list of labs, 
+                # use the English version
+                NEW_KEY = '_'.join((laboratory_id, 'en'))
+                response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
+                if response:
+                    PHET.cache[KEY] = response
+                    return response
 
-            link = link_data['en']['link']
+                link = link_data['en']['link']
 
         laboratory_html = PHET.cached_session.get(link).text
         soup = BeautifulSoup(laboratory_html)
