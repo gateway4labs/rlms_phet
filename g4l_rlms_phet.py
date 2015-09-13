@@ -65,7 +65,7 @@ def get_languages():
 
     listing_url = phet_url("/en/simulations/index")
     index_html = PHET.cached_session.get(listing_url).text
-    soup = BeautifulSoup(index_html)
+    soup = BeautifulSoup(index_html, "lxml")
     languages = set([])
     for translation_link in soup.find_all("a", class_="translation-link"):
         language = translation_link.get('href').split('/')[1]
@@ -79,7 +79,7 @@ def populate_links(lang, all_links):
     listing_url = phet_url("/%s/simulations/index" % lang)
 
     index_html = PHET.cached_session.get(listing_url).text
-    soup = BeautifulSoup(index_html)
+    soup = BeautifulSoup(index_html, 'lxml')
 
     laboratories = []
 
@@ -191,7 +191,7 @@ class RLMS(BaseRLMS):
                 link = link_data['en']['link']
 
         laboratory_html = PHET.cached_session.get(link).text
-        soup = BeautifulSoup(laboratory_html)
+        soup = BeautifulSoup(laboratory_html, 'lxml')
 
         url  = ""
 
@@ -206,7 +206,7 @@ class RLMS(BaseRLMS):
             embed_text = soup.find(id="embeddable-text").text
     
             # Then, check what's inside:
-            embed_soup = BeautifulSoup(embed_text)
+            embed_soup = BeautifulSoup(embed_text, 'lxml')
 
             # If it's an iframe, the src is the URL
             iframe_tag = embed_soup.find("iframe")
