@@ -20,7 +20,6 @@ from labmanager.forms import AddForm
 from labmanager.rlms import register, Laboratory, CacheDisabler
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
 
-DEBUG = False
     
 def dbg(msg):
     if DEBUG:
@@ -330,6 +329,8 @@ def populate_cache():
 
 PHET = register("PhET", ['1.0'], __name__)
 PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 23)
+
+DEBUG = False or PHET.is_debug()
 
 def main():
     rlms = RLMS("{}")
