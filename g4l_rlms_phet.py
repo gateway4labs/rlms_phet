@@ -23,7 +23,7 @@ from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versio
     
 def dbg(msg):
     if DEBUG:
-        print msg
+        print "[%s]" % time.asctime(), msg
         sys.stdout.flush()
 
 class PhETAddForm(AddForm):
