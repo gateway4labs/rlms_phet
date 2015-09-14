@@ -255,6 +255,8 @@ class _QueueTaskProcessor(threading.Thread):
         finally:
             cache_disabler.reenable()
 
+        dbg("%s: finished" % self.name)
+
 def _run_tasks(tasks, threads = 32):
     queue = Queue.Queue()
     for task in tasks:
@@ -305,7 +307,7 @@ class _QueueTask(object):
             return
 
         rlms = RLMS("{}")
-        dbg(' - %s lang: %s' % (self.laboratory_id, self.language))
+        dbg(' - %s: %s lang: %s' % (threading.current_thread().name, self.laboratory_id, self.language))
         rlms.reserve(self.laboratory_id, 'tester', 'foo', '', '', '', '', locale = self.language)
 
 def populate_cache():
@@ -326,6 +328,8 @@ def populate_cache():
         dbg("Finished")
     finally:
         ALL_LINKS = None
+        sys.stdout.flush()
+        sys.stderr.flush()
 
 PHET = register("PhET", ['1.0'], __name__)
 PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 23)
