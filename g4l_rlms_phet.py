@@ -63,7 +63,7 @@ def get_languages():
         return languages
 
     listing_url = phet_url("/en/simulations/index")
-    index_html = PHET.cached_session.get(listing_url).text
+    index_html = PHET.cached_session.timeout_get(listing_url).text
     soup = BeautifulSoup(index_html, "lxml")
     languages = set([])
     for translation_link in soup.find_all("a", class_="translation-link"):
@@ -77,7 +77,7 @@ def get_languages():
 def populate_links(lang, all_links):
     listing_url = phet_url("/%s/simulations/index" % lang)
 
-    index_html = PHET.cached_session.get(listing_url).text
+    index_html = PHET.cached_session.timeout_get(listing_url).text
     soup = BeautifulSoup(index_html, 'lxml')
 
     laboratories = []
@@ -189,7 +189,7 @@ class RLMS(BaseRLMS):
 
                 link = link_data['en']['link']
 
-        laboratory_html = PHET.cached_session.get(link).text
+        laboratory_html = PHET.cached_session.timeout_get(link).text
         soup = BeautifulSoup(laboratory_html, 'lxml')
 
         url  = ""
