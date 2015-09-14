@@ -26,6 +26,12 @@ def dbg(msg):
         print "[%s]" % time.asctime(), msg
         sys.stdout.flush()
 
+def dbg_lowlevel(scope, msg):
+    if DEBUG_LOW_LEVEL:
+        print "[%s][%s][%s]" % (time.asctime(), threading.current_thread().name, scope), msg
+        sys.stdout.flush()
+
+
 class PhETAddForm(AddForm):
 
     DEFAULT_URL = 'http://phet.colorado.edu/en/'
@@ -170,8 +176,10 @@ class RLMS(BaseRLMS):
         response = PHET.cache.get(KEY, min_time = MIN_TIME)
         if response is not None:
             return response
-        
+
+        dbg_lowlevel(laboratory_id, "Retrieving links")
         links = retrieve_all_links()
+        dbg_lowlevel(laboratory_id, "Links retrieved")
         link_data = links.get(laboratory_id)
         if link_data is None:
             link = laboratory_id
@@ -188,8 +196,10 @@ class RLMS(BaseRLMS):
                     return response
 
                 link = link_data['en']['link']
-
+        
+        dbg_lowlevel(laboratory_id, "Retrieving link: %s" % link)
         laboratory_html = PHET.cached_session.timeout_get(link).text
+        dbg_lowlevel(laboratory_id, "Link retrieved")
         soup = BeautifulSoup(laboratory_html, 'lxml')
 
         url  = ""
@@ -223,7 +233,9 @@ class RLMS(BaseRLMS):
             'reservation_id' : url,
             'load_url' : url
         }
+        dbg_lowlevel(laboratory_id, "Storing in cache")
         PHET.cache[KEY] = response
+        dbg_lowlevel(laboratory_id, "Finished")
         return response
 
     def load_widget(self, reservation_id, widget_name, **kwargs):
@@ -269,11 +281,22 @@ def _run_tasks(tasks, threads = 32):
         task_processors.append(task_processor)
 
     any_alive = True
+    count = 0
     while any_alive:
-        any_alive = False
+        alive_threads = []
         for task_processor in task_processors:
             if task_processor.isAlive():
-                any_alive = True
+                alive_threads.append(task_processor)
+
+        any_alive = len(alive_threads) > 0
+
+        if any_alive:
+            count = count + 1
+            if count % 60 == 0:
+                if len(alive_threads) > 5:
+                    dbg("%s live processors" % len(alive_threads))
+                else:
+                    dbg("%s live processors: %s" % (len(alive_threads), ', '.join([ t.name for t in alive_threads ])))
 
         try:
             time.sleep(1)
@@ -334,7 +357,8 @@ def populate_cache():
 PHET = register("PhET", ['1.0'], __name__)
 PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 23)
 
-DEBUG = False or PHET.is_debug()
+DEBUG = PHET.is_debug() or False
+DEBUG_LOW_LEVEL = DEBUG and True
 
 def main():
     rlms = RLMS("{}")
