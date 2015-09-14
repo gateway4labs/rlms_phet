@@ -11,6 +11,7 @@ import uuid
 import hashlib
 import threading
 import Queue
+import functools
 
 from bs4 import BeautifulSoup
 
@@ -26,7 +27,7 @@ def dbg(msg):
         print "[%s]" % time.asctime(), msg
         sys.stdout.flush()
 
-def dbg_lowlevel(scope, msg):
+def dbg_lowlevel(msg, scope):
     if DEBUG_LOW_LEVEL:
         print "[%s][%s][%s]" % (time.asctime(), threading.current_thread().name, scope), msg
         sys.stdout.flush()
@@ -177,9 +178,10 @@ class RLMS(BaseRLMS):
         if response is not None:
             return response
 
-        dbg_lowlevel(laboratory_id, "Retrieving links")
+        dbg_current = functools.partial(dbg_lowlevel, scope = '%s::%s' % (laboratory_id, locale))
+        dbg_current("Retrieving links")
         links = retrieve_all_links()
-        dbg_lowlevel(laboratory_id, "Links retrieved")
+        dbg_current("Links retrieved")
         link_data = links.get(laboratory_id)
         if link_data is None:
             link = laboratory_id
@@ -197,9 +199,9 @@ class RLMS(BaseRLMS):
 
                 link = link_data['en']['link']
         
-        dbg_lowlevel(laboratory_id, "Retrieving link: %s" % link)
+        dbg_current("Retrieving link: %s" % link)
         laboratory_html = PHET.cached_session.timeout_get(link).text
-        dbg_lowlevel(laboratory_id, "Link retrieved")
+        dbg_current("Link retrieved")
         soup = BeautifulSoup(laboratory_html, 'lxml')
 
         url  = ""
@@ -233,9 +235,9 @@ class RLMS(BaseRLMS):
             'reservation_id' : url,
             'load_url' : url
         }
-        dbg_lowlevel(laboratory_id, "Storing in cache")
+        dbg_current("Storing in cache")
         PHET.cache[KEY] = response
-        dbg_lowlevel(laboratory_id, "Finished")
+        dbg_current("Finished")
         return response
 
     def load_widget(self, reservation_id, widget_name, **kwargs):
