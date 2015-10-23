@@ -231,6 +231,9 @@ class RLMS(BaseRLMS):
         if url and not url.startswith(("http://", "https://")):
             url = phet_url(url)
 
+        if url.startswith('http://phet.colorado.eduhttps://'):
+            url = url[len('http://phet.colorado.edu'):]
+
         response = {
             'reservation_id' : url,
             'load_url' : url
