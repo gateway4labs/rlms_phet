@@ -12,6 +12,7 @@ import hashlib
 import threading
 import Queue
 import functools
+import traceback
 
 from bs4 import BeautifulSoup
 
@@ -172,7 +173,6 @@ class RLMS(BaseRLMS):
 
     def _convert_i18n_strings(self, strings):
         translations = {
-            'en' : {}
             # lang : {
             #      key: {
             #          'namespace': 'foo',
@@ -180,19 +180,26 @@ class RLMS(BaseRLMS):
             #      }
             # }
         }
-        for key, value in strings.values():
-            namespace, real_key = key.split('/', 1)
-            translations['en'][key] = {
-                'namespace' : namespace,
-                'value': value,
-            }
+        for lang in strings.keys():
+            translations[lang] = {}
+            for key, value in strings[lang].items():
+                if '/' in key:
+                    namespace, _ = key.split('/', 1)
+                else:
+                    namespace = None
+                translations[lang][key] = {
+                    'value': value,
+                }
+
+                if namespace is not None:
+                    translations[lang][key]['namespace'] = namespace
+
         return translations
 
     def get_translations(self, laboratory_id):
         translations = PHET.rlms_cache.get(laboratory_id)
         if translations:
             return translations
-
         RESPONSE = {
             'mails' : [
                 # TODO: hardcoded
@@ -200,44 +207,49 @@ class RLMS(BaseRLMS):
             ],
             'translations' : {}
         }
-        
-        data = self.reserve(laboratory_id = laboratory_id, None, None, None, None, None, None)
-        url = data['load_url']
-        
-        name = url.split('/')[-3]
-        string_map_url = url.rsplit('/', 1) + '/' + name + 'string-map.json'
-        r = PHET.cached_session.get(string_map_url)
-        if r.status == 200:
-            try:
-                converted_strings = self._convert_i18n_strings(r.json)
-            except:
-                pass
-            else:
-                RESPONSE['translations'].update(converted_strings)
+
+        try:            
+            data = self.reserve(laboratory_id, None, None, None, None, None, None)
+            url = data['load_url']
+            
+            name = url.split('/')[-3]
+            string_map_url = url.rsplit('/', 1)[0] + '/' + name + '_string-map.json'
+            print string_map_url
+            r = PHET.cached_session.get(string_map_url)
+            if r.status_code == 200:
+                try:
+                    converted_strings = self._convert_i18n_strings(r.json())
+                except:
+                    traceback.print_exc()
+                else:
+                    print converted_strings
+                    RESPONSE['translations'].update(converted_strings)
+                    return RESPONSE
+
+            r = PHET.cached_session.get(url)
+            if r.status_code != 200:
                 return RESPONSE
 
-        r = PHET.cached_session.get(url)
-        if r.status != 200:
+            i18n_line = None
+            for line in r.text.splitlines():
+                if line.strip().startswith('window.phet.chipper.strings'):
+                    i18n_line = line
+                    break
+
+            if i18n_line is None:
+                return RESPONSE
+
+            json_contents = i18n_line.split('=', 1)[1].strip()
+            json_contents = json_contents.rsplit(';', 1)[0]
+            try:
+                contents = json.loads(json_contents)
+            except:
+                return RESPONSE
+
             return RESPONSE
-
-        i18n_line = None
-        for line in r.text.splitlines():
-            if line.strip().startswith('window.phet.chipper.strings'):
-                i18n_line = line
-                break
-
-        if i18n_line is None:
-            return RESPONSE
-
-        json_contents = i18n_line.split('=', 1)[1].strip()
-        json_contents = json_contents.rsplit(';', 1)[0]
-        try:
-            contents = json.loads(json_contents)
         except:
+            traceback.print_exc()
             return RESPONSE
-
-        return RESPONSE
-
         
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
