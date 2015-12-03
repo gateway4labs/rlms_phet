@@ -165,9 +165,80 @@ class RLMS(BaseRLMS):
 
     def get_capabilities(self):
         return [ Capabilities.WIDGET ]
+        # return [ Capabilities.WIDGET, Capabilities.TRANSLATIONS ]
 
     def get_laboratories(self, **kwargs):
         return retrieve_labs()
+
+    def _convert_i18n_strings(self, strings):
+        translations = {
+            'en' : {}
+            # lang : {
+            #      key: {
+            #          'namespace': 'foo',
+            #          'value': 'bar',
+            #      }
+            # }
+        }
+        for key, value in strings.values():
+            namespace, real_key = key.split('/', 1)
+            translations['en'][key] = {
+                'namespace' : namespace,
+                'value': value,
+            }
+        return translations
+
+    def get_translations(self, laboratory_id):
+        translations = PHET.rlms_cache.get(laboratory_id)
+        if translations:
+            return translations
+
+        RESPONSE = {
+            'mails' : [
+                # TODO: hardcoded
+                'pablo.orduna@deusto.es',
+            ],
+            'translations' : {}
+        }
+        
+        data = self.reserve(laboratory_id = laboratory_id, None, None, None, None, None, None)
+        url = data['load_url']
+        
+        name = url.split('/')[-3]
+        string_map_url = url.rsplit('/', 1) + '/' + name + 'string-map.json'
+        r = PHET.cached_session.get(string_map_url)
+        if r.status == 200:
+            try:
+                converted_strings = self._convert_i18n_strings(r.json)
+            except:
+                pass
+            else:
+                RESPONSE['translations'].update(converted_strings)
+                return RESPONSE
+
+        r = PHET.cached_session.get(url)
+        if r.status != 200:
+            return RESPONSE
+
+        i18n_line = None
+        for line in r.text.splitlines():
+            if line.strip().startswith('window.phet.chipper.strings'):
+                i18n_line = line
+                break
+
+        if i18n_line is None:
+            return RESPONSE
+
+        json_contents = i18n_line.split('=', 1)[1].strip()
+        json_contents = json_contents.rsplit(';', 1)[0]
+        try:
+            contents = json.loads(json_contents)
+        except:
+            return RESPONSE
+
+        return RESPONSE
+
+        
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
         locale = kwargs.get('locale', 'en')
