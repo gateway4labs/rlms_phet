@@ -74,9 +74,11 @@ def get_languages():
     index_html = PHET.cached_session.timeout_get(listing_url).text
     soup = BeautifulSoup(index_html, "lxml")
     languages = set([])
-    for translation_link in soup.find_all("a", class_="translation-link"):
-        language = translation_link.get('href').split('/')[1]
-        languages.add(language)
+    for translation_link_option in soup.find_all("option"):
+        option_value = translation_link_option.get('value') or ''
+        if '/simulations/index' in option_value:
+            language = option_value.split('/')[1]
+            languages.add(language)
     languages = list(languages)
     languages.sort()
     PHET.cache[KEY] = languages
