@@ -167,7 +167,7 @@ class RLMS(BaseRLMS):
         return Versions.VERSION_1
 
     def get_capabilities(self):
-        return [ Capabilities.WIDGET ]
+        return [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST ]
         # return [ Capabilities.WIDGET, Capabilities.TRANSLATIONS ]
 
     def get_laboratories(self, **kwargs):
@@ -197,6 +197,21 @@ class RLMS(BaseRLMS):
                     translations[lang][key]['namespace'] = namespace
 
         return translations
+
+    def get_translation_list(self, laboratory_id):
+        KEY = 'languages_{}'.format(laboratory_id)
+        languages = PHET.rlms_cache.get(KEY)
+        if languages is None:
+            languages = []
+            links = retrieve_all_links()
+            link_data = links.get(laboratory_id)
+            if link_data is not None:
+                languages = list(link_data.keys())
+            PHET.rlms_cache[KEY] = languages
+
+        return {
+            'supported_languages' : languages
+        }
 
     def get_translations(self, laboratory_id):
         translations = PHET.rlms_cache.get(laboratory_id)
