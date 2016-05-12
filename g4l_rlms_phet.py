@@ -77,7 +77,7 @@ def get_languages():
     for translation_link_option in soup.find_all("option"):
         option_value = translation_link_option.get('value') or ''
         if '/simulations/index' in option_value:
-            language = option_value.split('/')[1]
+            language = option_value.split('http://phet.colorado.edu/')[1].split('/')[0]
             languages.add(language)
     languages = list(languages)
     languages.sort()
@@ -466,10 +466,11 @@ DEBUG = PHET.is_debug() or False
 DEBUG_LOW_LEVEL = DEBUG and True
 
 def main():
-    rlms = RLMS("{}")
-    t0 = time.time()
-    laboratories = rlms.get_laboratories()
-    tf = time.time()
+    with CacheDisabler():
+        rlms = RLMS("{}")
+        t0 = time.time()
+        laboratories = rlms.get_laboratories()
+        tf = time.time()
     print len(laboratories), (tf - t0), "seconds"
     print
     print laboratories[:10]
