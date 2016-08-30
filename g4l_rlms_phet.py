@@ -1,8 +1,9 @@
 # -*-*- encoding: utf-8 -*-*-
 
+import os
+import re
 import sys
 import time
-import re
 import sys
 import urlparse
 import json
@@ -314,7 +315,11 @@ class RLMS(BaseRLMS):
             url = html5_url.get("href")
         else:
             # Otherwise, if there is a embeddable-text
-            embed_text = soup.find(id="embeddable-text").text
+            embeddable_text = soup.find(id="embeddable-text")
+            if embeddable_text is None:
+                print("Error: %s doesn't have an 'embeddable-text'. Expect a None error" % link)
+
+            embed_text = embeddable_text.text
     
             # Then, check what's inside:
             embed_soup = BeautifulSoup(embed_text, 'lxml')
@@ -355,8 +360,10 @@ class RLMS(BaseRLMS):
 class _QueueTaskProcessor(threading.Thread):
     def __init__(self, number, queue):
         threading.Thread.__init__(self)
+        self.number = number
         self.setName("QueueProcessor-%s" % number)
         self.queue = queue
+        self._current = None
 
     def run(self):
         cache_disabler = CacheDisabler()
@@ -368,16 +375,26 @@ class _QueueTaskProcessor(threading.Thread):
                 except Queue.Empty:
                     break
                 else:
+                    self._current = t
                     try:
                         t.run()
                     except:
+                        print("Error in task: %s" % t)
                         traceback.print_exc()
         finally:
             cache_disabler.reenable()
+        self._current = None
 
         dbg("%s: finished" % self.name)
 
-def _run_tasks(tasks, threads = 32):
+    def __repr__(self):
+        return "_QueueTaskProcessor(number=%r, current=%r; alive=%r)" % (self.number, self._current, self.isAlive())
+
+NUM_THREADS = 32
+if os.environ.get('G4L_PHET_THREADS'):
+    NUM_THREADS = int(os.environ['G4L_PHET_THREADS'])
+
+def _run_tasks(tasks, threads = NUM_THREADS):
     queue = Queue.Queue()
     for task in tasks:
         queue.put(task)
@@ -403,8 +420,10 @@ def _run_tasks(tasks, threads = 32):
             if count % 60 == 0:
                 if len(alive_threads) > 5:
                     dbg("%s live processors" % len(alive_threads))
+                    print("[%s] %s live processors" % (time.asctime(), len(alive_threads)))
                 else:
-                    dbg("%s live processors: %s" % (len(alive_threads), ', '.join([ t.name for t in alive_threads ])))
+                    dbg("%s live processors: %s" % (len(alive_threads), ', '.join([ repr(t) for t in alive_threads ])))
+                    print("[%s] %s live processors: %s" % (time.asctime(), len(alive_threads), ', '.join([ repr(t) for t in alive_threads ])))
 
         try:
             time.sleep(1)
@@ -429,6 +448,9 @@ class _QueueTask(object):
         self.laboratory_id = laboratory_id
         self.language = language
         self.stopping = False
+
+    def __repr__(self):
+        return '_QueueTask(laboratory_id=%r, language=%r, stopping=%r)' % (self.laboratory_id, self.language, self.stopping)
 
     def stop(self):
         self.stopping = True
@@ -465,8 +487,16 @@ def populate_cache():
 PHET = register("PhET", ['1.0'], __name__)
 PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 23)
 
-DEBUG = PHET.is_debug() or False
-DEBUG_LOW_LEVEL = DEBUG and True
+DEBUG = PHET.is_debug() or (os.environ.get('G4L_DEBUG') or '').lower() == 'true' or False
+DEBUG_LOW_LEVEL = DEBUG and (os.environ.get('G4L_DEBUG_LOW') or '').lower() == 'true'
+
+if DEBUG:
+    print("Debug activated")
+
+if DEBUG_LOW_LEVEL:
+    print("Debug low level activated")
+
+sys.stdout.flush()
 
 def main():
     with CacheDisabler():
