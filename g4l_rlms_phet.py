@@ -368,7 +368,10 @@ class _QueueTaskProcessor(threading.Thread):
                 except Queue.Empty:
                     break
                 else:
-                    t.run()
+                    try:
+                        t.run()
+                    except:
+                        traceback.print_exc()
         finally:
             cache_disabler.reenable()
 
