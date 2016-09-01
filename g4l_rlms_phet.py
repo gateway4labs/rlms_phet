@@ -78,7 +78,7 @@ def get_languages():
     for translation_link_option in soup.find_all("option"):
         option_value = translation_link_option.get('value') or ''
         if '/simulations/index' in option_value:
-            language = option_value.split('http://phet.colorado.edu/')[1].split('/')[0]
+            language = option_value.split('https://phet.colorado.edu/')[1].split('/')[0]
             languages.add(language)
     languages = list(languages)
     languages.sort()
