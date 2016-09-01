@@ -318,6 +318,7 @@ class RLMS(BaseRLMS):
             embeddable_text = soup.find(id="embeddable-text")
             if embeddable_text is None:
                 print("Error: %s doesn't have an 'embeddable-text'. Expect a None error" % link)
+                sys.stdout.flush()
 
             embed_text = embeddable_text.text
     
@@ -424,6 +425,7 @@ def _run_tasks(tasks, threads = NUM_THREADS):
                 else:
                     dbg("%s live processors: %s" % (len(alive_threads), ', '.join([ repr(t) for t in alive_threads ])))
                     print("[%s] %s live processors: %s" % (time.asctime(), len(alive_threads), ', '.join([ repr(t) for t in alive_threads ])))
+                sys.stdout.flush()
 
         try:
             time.sleep(1)
