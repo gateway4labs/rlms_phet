@@ -67,7 +67,7 @@ MIN_TIME = datetime.timedelta(hours=24)
 
 def get_languages():
     KEY = 'get_languages'
-    languages = PHET.rlms_cache.get(KEY, min_time = MIN_TIME)
+    languages = PHET.cache.get(KEY, min_time = MIN_TIME)
     if languages:
         return languages
 
@@ -82,7 +82,7 @@ def get_languages():
             languages.add(language)
     languages = list(languages)
     languages.sort()
-    PHET.rlms_cache[KEY] = languages
+    PHET.cache[KEY] = languages
     return languages
 
 def populate_links(lang, all_links):
@@ -114,7 +114,7 @@ def populate_links(lang, all_links):
 
 def retrieve_all_links():
     KEY = 'get_links'
-    all_links = PHET.rlms_cache.get(KEY, min_time = MIN_TIME)
+    all_links = PHET.cache.get(KEY, min_time = MIN_TIME)
     if all_links:
         return all_links
 
@@ -137,12 +137,12 @@ def retrieve_all_links():
     for link, link_data in all_links.iteritems():
         new_links[link_data['en']['link']] = link_data
 
-    PHET.rlms_cache[KEY] = new_links
+    PHET.cache[KEY] = new_links
     return new_links
 
 def retrieve_labs():
     KEY = 'get_laboratories'
-    laboratories = PHET.rlms_cache.get(KEY, min_time = MIN_TIME)
+    laboratories = PHET.cache.get(KEY, min_time = MIN_TIME)
     if laboratories:
         return laboratories
 
@@ -156,7 +156,7 @@ def retrieve_labs():
             lab = Laboratory(name = cur_name, laboratory_id = link, autoload = True)
             laboratories.append(lab)
 
-    PHET.rlms_cache[KEY] = laboratories
+    PHET.cache[KEY] = laboratories
     return laboratories
 
 class RLMS(BaseRLMS):
@@ -201,21 +201,21 @@ class RLMS(BaseRLMS):
 
     def get_translation_list(self, laboratory_id):
         KEY = 'languages_{}'.format(laboratory_id)
-        languages = PHET.rlms_cache.get(KEY)
+        languages = PHET.cache.get(KEY)
         if languages is None:
             languages = []
             links = retrieve_all_links()
             link_data = links.get(laboratory_id)
             if link_data is not None:
                 languages = list(link_data.keys())
-            PHET.rlms_cache[KEY] = languages
+            PHET.cache[KEY] = languages
 
         return {
             'supported_languages' : languages
         }
 
     def get_translations(self, laboratory_id):
-        translations = PHET.rlms_cache.get(laboratory_id)
+        translations = PHET.cache.get(laboratory_id)
         if translations:
             return translations
         RESPONSE = {
@@ -275,7 +275,7 @@ class RLMS(BaseRLMS):
         if '_' in locale:
             locale = locale.split('_')[0]
         KEY = '_'.join((laboratory_id, locale))
-        response = PHET.rlms_cache.get(KEY, min_time = MIN_TIME)
+        response = PHET.cache.get(KEY, min_time = MIN_TIME)
         if response is not None:
             return response
 
@@ -293,9 +293,9 @@ class RLMS(BaseRLMS):
                 # If the language is not in the list of labs, 
                 # use the English version
                 NEW_KEY = '_'.join((laboratory_id, 'en'))
-                response = PHET.rlms_cache.get(NEW_KEY, min_time = MIN_TIME)
+                response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
                 if response:
-                    PHET.rlms_cache[KEY] = response
+                    PHET.cache[KEY] = response
                     return response
 
                 link = link_data['en']['link']
@@ -345,7 +345,7 @@ class RLMS(BaseRLMS):
             'load_url' : url
         }
         dbg_current("Storing in cache")
-        PHET.rlms_cache[KEY] = response
+        PHET.cache[KEY] = response
         dbg_current("Finished")
         return response
 
