@@ -60,57 +60,15 @@ FORM_CREATOR = PhETFormCreator()
 
 ALL_LINKS = None
 
-def phet_url(url):
-    return "http://phet.colorado.edu%s" % url
-
 MIN_TIME = datetime.timedelta(hours=24)
 
 def get_languages():
-    KEY = 'get_languages'
-    languages = PHET.cache.get(KEY, min_time = MIN_TIME)
-    if languages:
-        return languages
+    all_links = retrieve_all_links()
+    languages = set()
+    for link_data in all_links.values():
+        languages.update(link_data.keys())
 
-    listing_url = phet_url("/en/simulations/index")
-    index_html = PHET.cached_session.timeout_get(listing_url).text
-    soup = BeautifulSoup(index_html, "lxml")
-    languages = set([])
-    for translation_link_option in soup.find_all("option"):
-        option_value = translation_link_option.get('value') or ''
-        if '/simulations/index' in option_value:
-            language = option_value.split('https://phet.colorado.edu/')[1].split('/')[0]
-            languages.add(language)
-    languages = list(languages)
-    languages.sort()
-    PHET.cache[KEY] = languages
-    return languages
-
-def populate_links(lang, all_links):
-    listing_url = phet_url("/%s/simulations/index" % lang)
-
-    index_html = PHET.cached_session.timeout_get(listing_url).text
-    soup = BeautifulSoup(index_html, 'lxml')
-
-    laboratories = []
-
-    lang = lang.split('_')[0]
-    for h2 in soup.find_all("h2"):
-        parent_identifier = h2.parent.get('id')
-        if parent_identifier and len(parent_identifier) == 1:
-            for link in h2.parent.find_all("a"):
-                link_href = phet_url(link.get('href'))
-                name = link.find("span").text
-
-                # http://phet.colorado.edu/es/simulation/acid-base-solutions => simulation/acid-base-solutions
-                relative_path = urlparse.urlparse(link_href).path.split('/',2)[-1]
-                if relative_path not in all_links:
-                    all_links[relative_path] = {}
-
-                all_links[relative_path][lang] = {
-                    'link' : link_href,
-                    'name' : name,
-                }
-
+    return sorted(list(languages))
 
 def retrieve_all_links():
     KEY = 'get_links'
@@ -123,22 +81,54 @@ def retrieve_all_links():
     if all_links:
         return all_links
 
-    all_links = {}
-    previous_short_langs = set()
-    for lang in get_languages():
-        short_lang = lang.split('_')[0]
-        if short_lang in previous_short_langs:
+    all_links = {
+        # "http://phet.colorado.edu/en/simulation/acid-base-solutions" : {
+        #      # lang_code: {
+        #            'link' : 'http://phet.colorado.edu/pt/simulation/acid-base-solutions',
+        #            'name' : 'Localized name',
+        #            'run_url': '<html to be loaded>'
+        #      # }
+        # }
+    }
+
+    contents = PHET.cached_session.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json").json()
+    available_names = [ x['name'] for x in contents['projects'] ]
+
+    for simulation in contents['projects']:
+        current_name = simulation['name']
+        if ('html/' + simulation['name']) in available_names:
             continue
-        previous_short_langs.add(short_lang)
-        populate_links(lang, all_links)
 
-    new_links = {}
-    # Convert relative links into absolute links
-    for link, link_data in all_links.iteritems():
-        new_links[link_data['en']['link']] = link_data
+        for real_sim in simulation['simulations']:
+            link = "http://phet.colorado.edu/en/simulation/%s" % real_sim['name']
 
-    PHET.cache[KEY] = new_links
-    return new_links
+            sim_links = {
+                # lang_code: {
+                    # link
+                    # name
+                    # run_url
+                # }
+            }
+
+            available_langs = [ x['locale'] for x in real_sim['localizedSimulations'] ]
+            for localized_sim in real_sim['localizedSimulations']:
+                lang = localized_sim['locale']
+                if '_' in lang:
+                    lang = lang.split('_')[0]
+                    if lang in available_langs:
+                        # 'es' has higher priority over 'es_PE' 
+                        continue
+                sim_links[lang] = {
+                    'link' : link,
+                    'name': localized_sim['title'],
+                    'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
+                }
+
+            if sim_links:
+                all_links[link] = sim_links
+
+    PHET.cache[KEY] = all_links
+    return all_links
 
 def retrieve_labs():
     KEY = 'get_laboratories'
@@ -284,61 +274,21 @@ class RLMS(BaseRLMS):
         links = retrieve_all_links()
         dbg_current("Links retrieved")
         link_data = links.get(laboratory_id)
+
         if link_data is None:
-            link = laboratory_id
-        else:
-            if locale in link_data:
-                link = link_data[locale]['link']
-            else:
-                # If the language is not in the list of labs, 
-                # use the English version
-                NEW_KEY = '_'.join((laboratory_id, 'en'))
-                response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
-                if response:
-                    PHET.cache[KEY] = response
-                    return response
+            return None # TODO
 
-                link = link_data['en']['link']
+        localized = link_data.get(locale)
+        if localized is None:
+            NEW_KEY = '_'.join((laboratory_id, 'en'))
+            response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
+            if response:
+                PHET.cache[KEY] = response
+                return response
+
+            localized = link_data['en']
         
-        dbg_current("Retrieving link: %s" % link)
-        laboratory_html = PHET.cached_session.timeout_get(link).text
-        dbg_current("Link retrieved")
-        soup = BeautifulSoup(laboratory_html, 'lxml')
-
-        url  = ""
-
-        # If there's a "Run in HTML5" button
-        html5_url = soup.find("a", class_="sim-button", text=re.compile("HTML5"))
-
-        if html5_url:
-            # Then that's the URL
-            url = html5_url.get("href")
-        else:
-            # Otherwise, if there is a embeddable-text
-            embeddable_text = soup.find(id="embeddable-text")
-            if embeddable_text is None:
-                print("Error: %s doesn't have an 'embeddable-text'. Expect a None error" % link)
-                sys.stdout.flush()
-
-            embed_text = embeddable_text.text
-    
-            # Then, check what's inside:
-            embed_soup = BeautifulSoup(embed_text, 'lxml')
-
-            # If it's an iframe, the src is the URL
-            iframe_tag = embed_soup.find("iframe")
-            if iframe_tag:
-                url = iframe_tag.get("src")
-            else:
-                # Otherwise, the link is the URL
-                a_tag = embed_soup.find("a")
-                url = a_tag.get("href")
-
-        if url and not url.startswith(("http://", "https://")):
-            url = phet_url(url)
-
-        if url.startswith('http://phet.colorado.eduhttps://'):
-            url = url[len('http://phet.colorado.edu'):]
+        url = localized['run_url']
 
         response = {
             'reservation_id' : url,
@@ -506,19 +456,22 @@ def main():
         t0 = time.time()
         laboratories = rlms.get_laboratories()
         tf = time.time()
-    print len(laboratories), (tf - t0), "seconds"
-    print
-    print laboratories[:10]
-    print
-    # print get_languages()
-    # foo = {}
-    # populate_links('ar', foo)
-    # print sorted(foo.keys())
-    # print retrieve_all_links()['http://phet.colorado.edu/en/simulation/density']
-    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'el_ALL')
-    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'pt_ALL')
-    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'ar_ALL')
-    print rlms.reserve('http://phet.colorado.edu/en/simulation/density', 'tester', 'foo', '', '', '', '', locale = 'es_ALL')
+        print len(laboratories), (tf - t0), "seconds"
+        print
+        print laboratories[:10]
+        print
+        # print get_languages()
+        # foo = {}
+        # populate_links('ar', foo)
+        # print sorted(foo.keys())
+        # print retrieve_all_links()['http://phet.colorado.edu/en/simulation/density']
+        print rlms.reserve('http://phet.colorado.edu/en/simulation/beers-law-lab', 'tester', 'foo', '', '', '', '', locale = 'es_ALL')
+        print rlms.reserve('http://phet.colorado.edu/en/simulation/beers-law-lab', 'tester', 'foo', '', '', '', '', locale = 'xx_ALL')
+        print rlms.reserve('http://phet.colorado.edu/en/simulation/acid-base-solutions', 'tester', 'foo', '', '', '', '', locale = 'es_ALL')
+        print rlms.reserve('http://phet.colorado.edu/en/simulation/acid-base-solutions', 'tester', 'foo', '', '', '', '', locale = 'xx_ALL')
+        print rlms.get_translation_list('http://phet.colorado.edu/en/simulation/acid-base-solutions')
+
+    return
     for lab in laboratories[:5]:
         for lang in ('en', 'pt'):
             t0 = time.time()
