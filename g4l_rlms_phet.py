@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
 
 from labmanager.forms import AddForm
-from labmanager.rlms import register, Laboratory, CacheDisabler
+from labmanager.rlms import register, Laboratory, CacheDisabler, LabNotFoundError
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
 
     
@@ -276,7 +276,7 @@ class RLMS(BaseRLMS):
         link_data = links.get(laboratory_id)
 
         if link_data is None:
-            return None # TODO
+            raise LabNotFoundError("Lab %s not found" % laboratory_id)
 
         localized = link_data.get(locale)
         if localized is None:
@@ -470,6 +470,11 @@ def main():
         print rlms.reserve('http://phet.colorado.edu/en/simulation/acid-base-solutions', 'tester', 'foo', '', '', '', '', locale = 'es_ALL')
         print rlms.reserve('http://phet.colorado.edu/en/simulation/acid-base-solutions', 'tester', 'foo', '', '', '', '', locale = 'xx_ALL')
         print rlms.get_translation_list('http://phet.colorado.edu/en/simulation/acid-base-solutions')
+    
+        try:
+            rlms.reserve('identifier-not-found', 'tester', 'foo', '', '', '', '', locale = 'xx_ALL')
+        except LabNotFoundError:
+            print "Captured error"
 
     return
     for lab in laboratories[:5]:
