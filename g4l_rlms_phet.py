@@ -66,7 +66,7 @@ def get_languages():
     all_links = retrieve_all_links()
     languages = set()
     for link_data in all_links.values():
-        languages.update(link_data.keys())
+        languages.update(link_data['localized'].keys())
 
     return sorted(list(languages))
 
@@ -93,7 +93,16 @@ def retrieve_all_links():
 
     contents = PHET.cached_session.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json").json()
     available_names = [ x['name'] for x in contents['projects'] ]
+    
+    categories = {}
+    fetch_children_recursively(contents['categories'], contents['categories']['1'], categories, 10)
 
+    levels = dict([ 
+                    (v['name'], v['simulationIds']) 
+                    for v in contents['categories'].values() 
+                    if v['name'] in ('high-school', 'university', 'elementary-school', 'middle-school') 
+            ])
+    
     for simulation in contents['projects']:
         current_name = simulation['name']
         if ('html/' + simulation['name']) in available_names:
@@ -103,12 +112,37 @@ def retrieve_all_links():
             link = "http://phet.colorado.edu/en/simulation/%s" % real_sim['name']
 
             sim_links = {
-                # lang_code: {
-                    # link
-                    # name
-                    # run_url
-                # }
+                'localized': {
+                    # lang_code: {
+                    #     link
+                    #     name
+                    #     run_url
+                    # }
+                },
+                'metadata': {
+                    'domains': [],
+                    'age_ranges': [],
+                    'description': real_sim['description']['en'],
+                }
             }
+            for category_name, simulation_ids in categories.iteritems():
+                if simulation['id'] in simulation_ids:
+                    sim_links['metadata']['domains'].append(category_name)
+
+            for level_name, simulation_ids in levels.iteritems():
+                if simulation['id'] in simulation_ids:
+                    if level_name == 'university':
+                        sim_links['metadata']['age_ranges'].append('>18')
+                    elif level_name == 'high-school':
+                        sim_links['metadata']['age_ranges'].append('14-16')
+                        sim_links['metadata']['age_ranges'].append('16-18')
+                    elif level_name == 'middle-school':
+                        sim_links['metadata']['age_ranges'].append('10-12')
+                        sim_links['metadata']['age_ranges'].append('12-14')
+                    elif level_name == 'elementary-school':
+                        sim_links['metadata']['age_ranges'].append('8-10')
+                        sim_links['metadata']['age_ranges'].append('6-8')
+                        sim_links['metadata']['age_ranges'].append('<6')
 
             available_langs = [ x['locale'] for x in real_sim['localizedSimulations'] ]
             for localized_sim in real_sim['localizedSimulations']:
@@ -118,17 +152,32 @@ def retrieve_all_links():
                     if lang in available_langs:
                         # 'es' has higher priority over 'es_PE' 
                         continue
-                sim_links[lang] = {
+
+                sim_links['localized'][lang] = {
                     'link' : link,
                     'name': localized_sim['title'],
                     'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
                 }
 
-            if sim_links:
+            if sim_links['localized']:
                 all_links[link] = sim_links
 
     PHET.cache[KEY] = all_links
     return all_links
+
+def fetch_children_recursively(phet_categories, node, results, max_depth):
+    if max_depth == 0:
+        return
+
+    exceptions = ('by-device', 'by-level', 'html', 'new')
+
+    for children_id in node['childrenIds']:
+        current_children = phet_categories[unicode(children_id)]
+        if current_children['name'] in exceptions:
+            continue
+
+        results[current_children['name']] = current_children['simulationIds']
+        fetch_children_recursively(phet_categories, current_children, results, max_depth - 1)
 
 def retrieve_labs():
     KEY = 'get_laboratories'
@@ -141,9 +190,9 @@ def retrieve_labs():
     links = retrieve_all_links()
     laboratories = []
     for link, link_data in links.iteritems():
-        if 'en' in link_data:
-            cur_name = link_data['en']['name']
-            lab = Laboratory(name = cur_name, laboratory_id = link, autoload = True)
+        if 'en' in link_data['localized']:
+            cur_name = link_data['localized']['en']['name']
+            lab = Laboratory(name = cur_name, laboratory_id = link, autoload = True, domains=link_data['metadata']['domains'], age_ranges=link_data['metadata']['age_ranges'], description=link_data['metadata']['description'])
             laboratories.append(lab)
 
     PHET.cache[KEY] = laboratories
@@ -197,7 +246,7 @@ class RLMS(BaseRLMS):
             links = retrieve_all_links()
             link_data = links.get(laboratory_id)
             if link_data is not None:
-                languages = list(link_data.keys())
+                languages = list(link_data['localized'].keys())
             PHET.cache[KEY] = languages
 
         return {
@@ -278,7 +327,7 @@ class RLMS(BaseRLMS):
         if link_data is None:
             raise LabNotFoundError("Lab %s not found" % laboratory_id)
 
-        localized = link_data.get(locale)
+        localized = link_data['localized'].get(locale)
         if localized is None:
             NEW_KEY = '_'.join((laboratory_id, 'en'))
             response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
@@ -286,7 +335,7 @@ class RLMS(BaseRLMS):
                 PHET.cache[KEY] = response
                 return response
 
-            localized = link_data['en']
+            localized = link_data['localized']['en']
         
         url = localized['run_url']
 
@@ -474,7 +523,7 @@ def main():
         try:
             rlms.reserve('identifier-not-found', 'tester', 'foo', '', '', '', '', locale = 'xx_ALL')
         except LabNotFoundError:
-            print "Captured error"
+            print "Captured error successfully"
 
     return
     for lab in laboratories[:5]:
