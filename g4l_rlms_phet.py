@@ -198,6 +198,10 @@ def retrieve_labs():
     PHET.cache[KEY] = laboratories
     return laboratories
 
+CAPABILITIES = [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST ]
+if hasattr(Capabilities, 'URL_FINDER'):
+    CAPABILITIES.append(Capabilities.URL_FINDER)
+
 class RLMS(BaseRLMS):
 
     def __init__(self, configuration, *args, **kwargs):
@@ -207,11 +211,34 @@ class RLMS(BaseRLMS):
         return Versions.VERSION_1
 
     def get_capabilities(self):
-        return [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST ]
-        # return [ Capabilities.WIDGET, Capabilities.TRANSLATIONS ]
+        return CAPABILITIES 
 
     def get_laboratories(self, **kwargs):
         return retrieve_labs()
+
+    def get_base_urls(self):
+        return [ 'http://phet.colorado.edu/', 'https://phet.colorado.edu/' ]
+
+    def get_lab_by_url(self, url):
+        labs = { lab.laboratory_id.rsplit('/', 1)[-1]: lab for lab in retrieve_labs() }
+        path = urlparse.urlparse(url).path
+        parts = path[1:].split('/')
+        if len(parts) > 2:
+            if parts[1] == 'simulation':
+                if parts[2] == 'legacy' and len(parts) > 3:
+                    if parts[3] in labs.keys():
+                        return labs[parts[3]]
+                if parts[2] in labs.keys():
+                    return labs[parts[2]]
+            if parts[1] == 'html' and parts[2] in labs.keys():
+                return labs[parts[2]]
+            if parts[0] == 'sims':
+                if parts[1] in labs.keys():
+                    return labs[parts[1]]
+                if parts[2].split('_')[0] in labs.keys():
+                    return labs[parts[2].split('_')[0]]
+
+        return None
 
     def _convert_i18n_strings(self, strings):
         translations = {
@@ -525,6 +552,12 @@ def main():
         except LabNotFoundError:
             print "Captured error successfully"
 
+        print rlms.get_base_urls()
+        print rlms.get_lab_by_url("https://phet.colorado.edu/en/simulation/acid-base-solutions")
+        print rlms.get_lab_by_url("https://phet.colorado.edu/sims/html/acid-base-solutions/latest/acid-base-solutions_en.html")
+        print rlms.get_lab_by_url("https://phet.colorado.edu/en/simulation/legacy/alpha-decay")
+        print rlms.get_lab_by_url("https://phet.colorado.edu/sims/radiating-charge/radiating-charge_en.html")
+        print rlms.get_lab_by_url("https://phet.colorado.edu/sims/nuclear-physics/alpha-decay_en.jnlp")
     return
     for lab in laboratories[:5]:
         for lang in ('en', 'pt'):
