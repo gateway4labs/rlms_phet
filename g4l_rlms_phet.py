@@ -198,9 +198,7 @@ def retrieve_labs():
     PHET.cache[KEY] = laboratories
     return laboratories
 
-CAPABILITIES = [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST ]
-if hasattr(Capabilities, 'URL_FINDER'):
-    CAPABILITIES.append(Capabilities.URL_FINDER)
+CAPABILITIES = [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST, Capabilities.URL_FINDER, Capabilities.CHECK_URLS ]
 
 class RLMS(BaseRLMS):
 
@@ -334,12 +332,18 @@ class RLMS(BaseRLMS):
         except:
             traceback.print_exc()
             return RESPONSE
-        
+    
+    def get_check_urls(self, laboratory_id):
+        check_urls = []
+        for locale in self.get_translation_list(laboratory_id):
+            response = self._get_url(laboratory_id, locale)
+            if response:
+                load_url = response['load_url']
+                check_urls.append(load_url)
 
-    def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
-        locale = kwargs.get('locale', 'en')
-        if '_' in locale:
-            locale = locale.split('_')[0]
+        return check_urls
+
+    def _get_url(self, laboratory_id, locale):
         KEY = '_'.join((laboratory_id, locale))
         response = PHET.cache.get(KEY, min_time = MIN_TIME)
         if response is not None:
@@ -372,6 +376,15 @@ class RLMS(BaseRLMS):
         }
         dbg_current("Storing in cache")
         PHET.cache[KEY] = response
+        return response
+
+    def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
+        locale = kwargs.get('locale', 'en')
+        if '_' in locale:
+            locale = locale.split('_')[0]
+
+        response = self._get_url(laboratory_id, locale)
+
         dbg_current("Finished")
         return response
 
@@ -469,7 +482,6 @@ def _run_tasks(tasks, threads = NUM_THREADS):
             raise
 
     dbg("All processes are over")
-
 
 class _QueueTask(object):
     def __init__(self, laboratory_id, language):
