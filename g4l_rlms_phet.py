@@ -335,8 +335,9 @@ class RLMS(BaseRLMS):
     
     def get_check_urls(self, laboratory_id):
         check_urls = []
-        for locale in self.get_translation_list(laboratory_id):
+        for locale in self.get_translation_list(laboratory_id)['supported_languages']:
             response = self._get_url(laboratory_id, locale)
+            print(response)
             if response:
                 load_url = response['load_url']
                 check_urls.append(load_url)
