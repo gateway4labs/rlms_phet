@@ -386,6 +386,7 @@ class RLMS(BaseRLMS):
 
         response = self._get_url(laboratory_id, locale)
 
+        dbg_current = functools.partial(dbg_lowlevel, scope = '%s::%s' % (laboratory_id, locale))
         dbg_current("Finished")
         return response
 
