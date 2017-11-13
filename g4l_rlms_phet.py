@@ -15,6 +15,7 @@ import Queue
 import functools
 import traceback
 
+import requests
 from bs4 import BeautifulSoup
 
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
@@ -90,8 +91,19 @@ def retrieve_all_links():
         #      # }
         # }
     }
+    
+    trials = 0
 
-    contents = PHET.cached_session.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json").json()
+    while True:
+        try:
+            contents = requests.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json").json()
+        except ValueError:
+            trials = trials + 1
+            if trials >= 3:
+                raise
+        else:
+            break
+        
     available_names = [ x['name'] for x in contents['projects'] ]
     
     categories = {}
