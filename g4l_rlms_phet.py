@@ -15,6 +15,8 @@ import Queue
 import functools
 import traceback
 
+import requests
+
 from bs4 import BeautifulSoup
 
 from flask.ext.wtf import TextField, PasswordField, Required, URL, ValidationError
@@ -23,7 +25,6 @@ from labmanager.forms import AddForm
 from labmanager.rlms import register, Laboratory, CacheDisabler, LabNotFoundError
 from labmanager.rlms.base import BaseRLMS, BaseFormCreator, Capabilities, Versions
 
-    
 def dbg(msg):
     if DEBUG:
         print "[%s]" % time.asctime(), msg
@@ -91,7 +92,12 @@ def retrieve_all_links():
         # }
     }
 
-    contents = PHET.cached_session.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json").json()
+    try:
+        contents = PHET.cached_session.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json").json()
+    except:
+        # Sometimes their vagrant gives problem, try again without cache
+        contents = requests.get("https://phet.colorado.edu/services/metadata/1.0/simulations?format=json", headers={'Cache-Control': 'no-cache'}).json()
+
     available_names = [ x['name'] for x in contents['projects'] ]
     
     categories = {}
