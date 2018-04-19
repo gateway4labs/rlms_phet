@@ -307,7 +307,6 @@ class RLMS(BaseRLMS):
             
             name = url.split('/')[-3]
             string_map_url = url.rsplit('/', 1)[0] + '/' + name + '_string-map.json'
-            print string_map_url
             r = PHET.cached_session.get(string_map_url)
             if r.status_code == 200:
                 try:
@@ -315,7 +314,6 @@ class RLMS(BaseRLMS):
                 except:
                     traceback.print_exc()
                 else:
-                    print converted_strings
                     RESPONSE['translations'].update(converted_strings)
                     return RESPONSE
 
@@ -348,7 +346,6 @@ class RLMS(BaseRLMS):
         check_urls = []
         for locale in self.get_translation_list(laboratory_id)['supported_languages']:
             response = self._get_url(laboratory_id, locale)
-            print(response)
             if response:
                 load_url = response['load_url']
                 check_urls.append(load_url)
