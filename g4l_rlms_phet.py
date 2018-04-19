@@ -201,8 +201,8 @@ def retrieve_labs():
     links = retrieve_all_links()
     laboratories = []
     for link, link_data in links.iteritems():
-        if 'en' in link_data['localized']:
-            cur_name = link_data['localized']['en']['name']
+        if 'en_ALL' in link_data['localized']:
+            cur_name = link_data['localized']['en_ALL']['name']
             lab = Laboratory(name = cur_name, laboratory_id = link, autoload = True, domains=link_data['metadata']['domains'], age_ranges=link_data['metadata']['age_ranges'], description=link_data['metadata']['description'])
             laboratories.append(lab)
 
@@ -372,13 +372,13 @@ class RLMS(BaseRLMS):
 
         localized = link_data['localized'].get(locale)
         if localized is None:
-            NEW_KEY = '_'.join((laboratory_id, 'en'))
+            NEW_KEY = '_'.join((laboratory_id, 'en_ALL'))
             response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
             if response:
                 PHET.cache[KEY] = response
                 return response
 
-            localized = link_data['localized']['en']
+            localized = link_data['localized']['en_ALL']
         
         url = localized['run_url']
 
@@ -391,7 +391,7 @@ class RLMS(BaseRLMS):
         return response
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
-        locale = kwargs.get('locale', 'en')
+        locale = kwargs.get('locale', 'en_ALL')
         if '_' not in locale:
             locale = locale + "_ALL"
 
@@ -585,7 +585,7 @@ def main():
         print rlms.get_lab_by_url("https://phet.colorado.edu/sims/nuclear-physics/alpha-decay_en.jnlp")
     return
     for lab in laboratories[:5]:
-        for lang in ('en', 'pt'):
+        for lang in ('en_ALL', 'pt_ALL'):
             t0 = time.time()
             print rlms.reserve(lab.laboratory_id, 'tester', 'foo', '', '', '', '', locale = lang)
             tf = time.time()
