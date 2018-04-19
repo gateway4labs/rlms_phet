@@ -170,6 +170,15 @@ def retrieve_all_links():
                     'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
                 }
 
+                generalized_lang = lang.split('_')[0] + '_ALL'
+                if not lang.endswith('_ALL') and generalized_lang not in sim_links['localized']:
+                    sim_links['localized'][generalized_lang] = {
+                        'link' : link,
+                        'name': localized_sim['title'],
+                        'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
+                    }
+
+
             if sim_links['localized']:
                 all_links[link] = sim_links
 
