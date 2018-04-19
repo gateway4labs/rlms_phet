@@ -161,11 +161,8 @@ def retrieve_all_links():
             available_langs = [ x['locale'] for x in real_sim['localizedSimulations'] ]
             for localized_sim in real_sim['localizedSimulations']:
                 lang = localized_sim['locale']
-                if '_' in lang:
-                    lang = lang.split('_')[0]
-                    if lang in available_langs:
-                        # 'es' has higher priority over 'es_PE' 
-                        continue
+                if '_' not in lang:
+                    lang = lang + "_ALL"
 
                 sim_links['localized'][lang] = {
                     'link' : link,
@@ -395,8 +392,8 @@ class RLMS(BaseRLMS):
 
     def reserve(self, laboratory_id, username, institution, general_configuration_str, particular_configurations, request_payload, user_properties, *args, **kwargs):
         locale = kwargs.get('locale', 'en')
-        if '_' in locale:
-            locale = locale.split('_')[0]
+        if '_' not in locale:
+            locale = locale + "_ALL"
 
         response = self._get_url(laboratory_id, locale)
 
