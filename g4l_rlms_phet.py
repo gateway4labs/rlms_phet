@@ -358,12 +358,6 @@ class RLMS(BaseRLMS):
         if response is not None:
             return response
 
-        if '_' in locale:
-            KEY = '_'.join((laboratory_id, locale.split('_')[0] + '_ALL'))
-            response = PHET.cache.get(KEY, min_time = MIN_TIME)
-            if response is not None:
-                return response
-
         dbg_current = functools.partial(dbg_lowlevel, scope = '%s::%s' % (laboratory_id, locale))
         dbg_current("Retrieving links")
         links = retrieve_all_links()
@@ -375,14 +369,23 @@ class RLMS(BaseRLMS):
 
         localized = link_data['localized'].get(locale)
         if localized is None:
-            NEW_KEY = '_'.join((laboratory_id, 'en_ALL'))
+            new_locale = locale.split('_')[0] + '_ALL'
+            NEW_KEY = '_'.join((laboratory_id, new_locale))
             response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
             if response:
                 PHET.cache[KEY] = response
                 return response
 
-            localized = link_data['localized']['en_ALL']
-        
+            localized = link_data['localized'].get(new_locale)
+            if localized is None:
+                NEW_KEY = '_'.join((laboratory_id, 'en_ALL'))
+                response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
+                if response:
+                    PHET.cache[KEY] = response
+                    return response
+
+                localized = link_data['localized']['en_ALL']
+ 
         url = localized['run_url']
 
         response = {
