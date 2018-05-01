@@ -170,6 +170,13 @@ def retrieve_all_links():
                     'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
                 }
 
+                if lang == 'zh_CN': # Compatibility: before 'zh' was what now is 'zh_CN'
+                    sim_links['localized']['zh'] = {
+                        'link' : link,
+                        'name': localized_sim['title'],
+                        'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
+                    }
+
             if sim_links['localized']:
                 all_links[link] = sim_links
 
