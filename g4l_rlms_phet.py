@@ -170,8 +170,24 @@ def retrieve_all_links():
                     'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
                 }
 
-                if lang == 'zh_CN': # Compatibility: before 'zh' was what now is 'zh_CN'
-                    sim_links['localized']['zh'] = {
+                if lang == 'zh_CN':
+                    sim_links['localized']['zh_ALL'] = {
+                        'link' : link,
+                        'name': localized_sim['title'],
+                        'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
+                    }
+
+            # Repeat filling the spaces (e.g., xx_YY will also be xx_ALL). Only if needed
+            for localized_sim in real_sim['localizedSimulations']:
+                lang = localized_sim['locale']
+                if '_' not in lang:
+                    # 'es' is already default, so no issue
+                    continue
+
+                generalized_lang = lang.split('_')[0] + '_ALL'
+
+                if generalized_lang not in sim_links['localized']:
+                    sim_links['localized'][generalized_lang] = {
                         'link' : link,
                         'name': localized_sim['title'],
                         'run_url': localized_sim['runUrl'].replace('https://', 'http://'),
@@ -314,7 +330,6 @@ class RLMS(BaseRLMS):
             
             name = url.split('/')[-3]
             string_map_url = url.rsplit('/', 1)[0] + '/' + name + '_string-map.json'
-            print string_map_url
             r = PHET.cached_session.get(string_map_url)
             if r.status_code == 200:
                 try:
@@ -322,7 +337,6 @@ class RLMS(BaseRLMS):
                 except:
                     traceback.print_exc()
                 else:
-                    print converted_strings
                     RESPONSE['translations'].update(converted_strings)
                     return RESPONSE
 
@@ -355,7 +369,6 @@ class RLMS(BaseRLMS):
         check_urls = []
         for locale in self.get_translation_list(laboratory_id)['supported_languages']:
             response = self._get_url(laboratory_id, locale)
-            print(response)
             if response:
                 load_url = response['load_url']
                 check_urls.append(load_url)
@@ -379,14 +392,23 @@ class RLMS(BaseRLMS):
 
         localized = link_data['localized'].get(locale)
         if localized is None:
-            NEW_KEY = '_'.join((laboratory_id, 'en_ALL'))
+            new_locale = locale.split('_')[0] + '_ALL'
+            NEW_KEY = '_'.join((laboratory_id, new_locale))
             response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
             if response:
                 PHET.cache[KEY] = response
                 return response
 
-            localized = link_data['localized']['en_ALL']
-        
+            localized = link_data['localized'].get(new_locale)
+            if localized is None:
+                NEW_KEY = '_'.join((laboratory_id, 'en_ALL'))
+                response = PHET.cache.get(NEW_KEY, min_time = MIN_TIME)
+                if response:
+                    PHET.cache[KEY] = response
+                    return response
+
+                localized = link_data['localized']['en_ALL']
+ 
         url = localized['run_url']
 
         response = {
