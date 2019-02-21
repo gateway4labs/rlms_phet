@@ -567,7 +567,7 @@ def populate_cache():
         sys.stderr.flush()
 
 PHET = register("PhET", ['1.0'], __name__)
-PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 23)
+PHET.add_global_periodic_task('Populating cache', populate_cache, hours = 11)
 
 DEBUG = PHET.is_debug() or (os.environ.get('G4L_DEBUG') or '').lower() == 'true' or False
 DEBUG_LOW_LEVEL = DEBUG and (os.environ.get('G4L_DEBUG_LOW') or '').lower() == 'true'
