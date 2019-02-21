@@ -37,7 +37,7 @@ def dbg_lowlevel(msg, scope):
 
 class PhETAddForm(AddForm):
 
-    DEFAULT_URL = 'http://phet.colorado.edu/en/'
+    DEFAULT_URL = 'https://phet.colorado.edu/en/'
     DEFAULT_LOCATION = 'Colorado, USA'
     DEFAULT_PUBLICLY_AVAILABLE = True
     DEFAULT_PUBLIC_IDENTIFIER = 'phet'
@@ -413,7 +413,7 @@ class RLMS(BaseRLMS):
 
         response = {
             'reservation_id' : url,
-            'load_url' : url
+            'load_url' : url.replace('http://', 'https://')
         }
         dbg_current("Storing in cache")
         PHET.cache[KEY] = response
@@ -432,7 +432,7 @@ class RLMS(BaseRLMS):
 
     def load_widget(self, reservation_id, widget_name, **kwargs):
         return {
-            'url' : reservation_id
+            'url' : reservation_id.replace('http://', 'https://')
         }
 
     def list_widgets(self, laboratory_id, **kwargs):
