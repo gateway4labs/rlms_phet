@@ -232,7 +232,7 @@ def retrieve_labs():
     PHET.cache[KEY] = laboratories
     return laboratories
 
-CAPABILITIES = [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST, Capabilities.URL_FINDER, Capabilities.CHECK_URLS ]
+CAPABILITIES = [ Capabilities.WIDGET, Capabilities.TRANSLATION_LIST, Capabilities.URL_FINDER, Capabilities.CHECK_URLS, Capabilities.DOWNLOAD_LIST ]
 
 class RLMS(BaseRLMS):
 
@@ -374,6 +374,16 @@ class RLMS(BaseRLMS):
                 check_urls.append(load_url)
 
         return check_urls
+
+    def get_downloads(self, laboratory_id):
+        downloads = {}
+        for locale in self.get_translation_list(laboratory_id)['supported_languages']:
+            response = self._get_url(laboratory_id, locale)
+            if response:
+                load_url = response['load_url'] + '?download'
+                downloads[locale] = load_url
+
+        return downloads
 
     def _get_url(self, laboratory_id, locale):
         KEY = '_'.join((laboratory_id, locale))
